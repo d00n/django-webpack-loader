@@ -1,5 +1,6 @@
 import json
 import time
+import os
 from io import open
 
 from django.conf import settings
@@ -22,14 +23,16 @@ class WebpackLoader(object):
         self.config = load_config(self.name)
 
     def _load_assets(self):
+        print("about to load {}").format(self.config['ASSET_MANIFEST_FILE'])
         try:
-            with open(self.config['STATS_FILE'], encoding="utf-8") as f:
+            with open(self.config['ASSET_MANIFEST_FILE'],
+                      encoding="utf-8") as f:
                 return json.load(f)
         except IOError:
             raise IOError(
                 'Error reading {0}. Are you sure webpack has generated '
                 'the file and the path is correct?'.format(
-                    self.config['STATS_FILE']))
+                    self.config['ASSET_MANIFEST_FILE']))
 
     def get_assets(self):
         if self.config['CACHE']:
@@ -56,6 +59,21 @@ class WebpackLoader(object):
         )
         return staticfiles_storage.url(relpath)
 
+    def get_asset(self, asset_name):
+        assets = self.get_assets()
+
+        asset_path = assets.get(asset_name, None)
+        if asset_path is None:
+            raise WebpackBundleLookupError('Cannot resolve')
+
+        url = os.path.join(self.config['ASSET_DIR_NAME'],
+                           asset_path)
+
+        return url
+
+        raise WebpackLoaderBadStatsError(
+            "The assets-manifest file does not contain valid data")
+
     def get_bundle(self, bundle_name):
         assets = self.get_assets()
 
@@ -80,7 +98,7 @@ class WebpackLoader(object):
         if assets.get('status') == 'done':
             chunks = assets['chunks'].get(bundle_name, None)
             if chunks is None:
-                raise WebpackBundleLookupError('Cannot resolve bundle {0}.'.format(bundle_name))
+                raise WebpackBundleLookupError('Cannot resolve')
             return self.filter_chunks(chunks)
 
         elif assets.get('status') == 'error':
